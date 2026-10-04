@@ -7,12 +7,12 @@
 <style>
   :root {
     --bg: #f1f5f9; --panel: #ffffff; --text: #0f172a; --muted: #64748b; --border: #e2e8f0;
-    --brand: #2563eb; --accent: #06b6d4; --bot: #f8fafc; --user-text: #ffffff; --error: #dc2626;
+    --brand: #2563eb; --accent: #06b6d4; --bot: #f8fafc; --user-text: #ffffff; --error: #dc2626; --warn: #b45309;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #020617; --panel: #0f172a; --text: #e2e8f0; --muted: #94a3b8; --border: #1e293b;
-      --bot: #111c33; --error: #f87171;
+      --bot: #111c33; --error: #f87171; --warn: #fbbf24;
     }
   }
   * { box-sizing: border-box; }
@@ -37,6 +37,13 @@
   .msg.bot-reply { align-self: flex-start; background: var(--bot); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
   .msg.error { align-self: flex-start; color: var(--error); border: 1px solid var(--error); background: transparent; }
   .meta { font-size: 11px; color: var(--muted); margin-top: 6px; white-space: normal; }
+  .tag { display: table; font-size: 11px; font-weight: 600; color: var(--warn); border: 1px solid var(--warn); border-radius: 999px; padding: 1px 8px; margin-bottom: 6px; white-space: normal; }
+  .rate { display: flex; gap: 6px; align-items: center; margin-top: 6px; white-space: normal; }
+  .rate button { border: 1px solid var(--border); background: transparent; border-radius: 8px; padding: 2px 8px; cursor: pointer; font-size: 13px; color: var(--text); }
+  .rate button.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 15%, transparent); }
+  .rate input { flex: 1; min-width: 0; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; font-size: 12px; }
+  .msg.bot-reply:has(.rate input) { width: min(80%, 560px); }
+  .rate .thanks { font-size: 11px; color: var(--muted); }
   .empty { color: var(--muted); font-size: 14px; margin: auto; text-align: center; }
   .suggest { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 12px; }
   .suggest button { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
@@ -54,6 +61,7 @@
     .bot { flex: 0 0 auto; width: auto; margin: 0; padding: 8px 12px; }
     .bot span { display: none; }
     .msg { max-width: 92%; }
+    .msg.bot-reply:has(.rate input) { width: 92%; }
     #log, form, header { padding-left: 16px; padding-right: 16px; }
   }
 </style>
@@ -76,7 +84,7 @@
 </div>
 <script>
 const SUGGESTIONS = {
-  "it-support": ["VPN saya error SC-777, harus bagaimana?", "Berapa nomor helpdesk IT?", "Akun saya terkunci, kapan bisa dipakai lagi?"],
+  "it-support": ["VPN saya error SC-777, harus bagaimana?", "Berapa nomor helpdesk IT?", "Buatkan kode Python untuk deret bilangan prima"],
   "customer-service": ["Berapa lama batas retur barang?", "Kapan refund saya masuk?", "Apa syarat member Platinum?"],
   "peraturan": ["Boleh WFH berapa hari seminggu?", "Berapa lama SP1 berlaku?", "Bolehkah menerima hadiah dari pemasok?"],
   "hr": ["Berapa hari jatah cuti tahunan?", "Cuti ayah berapa hari?", "Tanggal berapa gaji dibayar?"],
@@ -130,15 +138,73 @@ function renderLog() {
     const div = document.createElement("div");
     div.className = "msg " + m.role;
     div.innerHTML = m.role === "bot-reply" ? renderAnswer(m.text) : escapeHtml(m.text);
+    if (m.general) {
+      const tag = document.createElement("div");
+      tag.className = "tag";
+      tag.textContent = "Pengetahuan umum — bukan dari dokumen perusahaan";
+      div.prepend(tag);
+    }
     if (m.meta) {
       const meta = document.createElement("div");
       meta.className = "meta";
       meta.textContent = m.meta;
       div.appendChild(meta);
     }
+    if (m.answer) div.appendChild(renderRating(m));
     log.appendChild(div);
   }
   log.scrollTop = log.scrollHeight;
+}
+
+// 👍/👎 on an answer -> POST /api/feedback/<bot> (forwarded to the API Gateway). 👎 asks for a note.
+function renderRating(m) {
+  const row = document.createElement("div");
+  row.className = "rate";
+  if (m.rated !== undefined) {
+    row.innerHTML = `<span class="thanks">${m.rated ? "👍" : "👎"} Terima kasih, masukan Anda tercatat.</span>`;
+    return row;
+  }
+  if (m.noteOpen) {
+    const input = document.createElement("input");
+    input.placeholder = "Apa yang salah? (mis. aturan ini sudah berubah)";
+    input.maxLength = 2000;
+    const send = document.createElement("button");
+    send.textContent = "Kirim";
+    send.onclick = () => sendFeedback(m, false, input.value);
+    input.onkeydown = (e) => { if (e.key === "Enter") sendFeedback(m, false, input.value); };
+    row.append(input, send);
+    setTimeout(() => input.focus(), 0);
+    return row;
+  }
+  const up = document.createElement("button");
+  up.textContent = "👍";
+  up.title = "Membantu";
+  up.onclick = () => sendFeedback(m, true, "");
+  const down = document.createElement("button");
+  down.textContent = "👎";
+  down.title = "Tidak membantu";
+  down.onclick = () => { m.noteOpen = true; renderLog(); };
+  row.append(up, down);
+  return row;
+}
+
+async function sendFeedback(m, wasHelpful, note) {
+  try {
+    const response = await fetch(`/api/feedback/${m.botId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question: m.question, answer: m.answer, sources: m.sources, from_general_knowledge: !!m.general,
+        was_helpful: wasHelpful, note: note.trim() || null, export_id: m.exportId,
+      }),
+    });
+    if (!response.ok) throw new Error((await response.json()).error || `Error ${response.status}`);
+    m.rated = wasHelpful;
+  } catch (err) {
+    alert(`Gagal mengirim masukan: ${err.message}`);
+  }
+  m.noteOpen = false;
+  renderLog();
 }
 
 function selectBot(id) {
@@ -169,8 +235,11 @@ async function ask(question) {
       Object.assign(pending, { role: "error", text: body.error || `Error ${response.status}` });
     } else {
       const sources = (body.sources || []).map((s) => s.label).filter(Boolean);
+      Object.assign(pending, {
+        botId, question, answer: body.answer, sources: body.sources || [], exportId: body.export_id, general: body.from_general_knowledge,
+      });
       pending.text = body.answer;
-      pending.meta = `${seconds} detik` + (sources.length ? ` · Sumber: ${[...new Set(sources)].join(", ")}` : "");
+      pending.meta = `${seconds} detik` + (sources.length && !body.from_general_knowledge ? ` · Sumber: ${[...new Set(sources)].join(", ")}` : "");
     }
   } catch (err) {
     Object.assign(pending, { role: "error", text: `Server demo tidak bisa dihubungi: ${err.message}` });

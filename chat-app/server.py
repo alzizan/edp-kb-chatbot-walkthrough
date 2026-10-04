@@ -3,8 +3,9 @@
 
 - Menyajikan index.html.
 - GET  /api/bots        -> daftar chatbot (tanpa API key).
-- POST /api/ask/<id>    -> diteruskan ke API Gateway: POST {gateway_url}/api/v1/gateway/ask/<path>
-                           dengan header `apikey` milik chatbot tsb.
+- POST /api/ask/<id>      -> diteruskan ke API Gateway: POST {gateway_url}/api/v1/gateway/ask/<path>
+                             dengan header `apikey` milik chatbot tsb.
+- POST /api/feedback/<id> -> 👍/👎 atas jawaban: POST {gateway_url}/api/v1/gateway/feedback/<path>
 
 API key hanya ada di server (config.json), tidak pernah dikirim ke browser.
 
@@ -53,23 +54,28 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": "Not found"})
 
     def do_POST(self) -> None:
-        if not self.path.startswith("/api/ask/"):
+        endpoint, _, bot_id = self.path.removeprefix("/api/").partition("/")
+        if endpoint not in ("ask", "feedback"):
             self._send_json(404, {"error": "Not found"})
             return
-        bot_id = self.path.removeprefix("/api/ask/")
         bot = next((b for b in self.config["bots"] if b["id"] == bot_id), None)
         if bot is None:
             self._send_json(404, {"error": f"Chatbot '{bot_id}' tidak ada di config"})
             return
         try:
-            question = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))["question"]
-        except (ValueError, KeyError):
-            self._send_json(400, {"error": "Body harus berisi {\"question\": \"...\"}"})
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+        except ValueError:
+            self._send_json(400, {"error": "Body harus JSON"})
             return
+        if endpoint == "ask":
+            if not isinstance(body.get("question"), str):
+                self._send_json(400, {"error": "Body harus berisi {\"question\": \"...\"}"})
+                return
+            body = {"question": body["question"]}
 
         request = urllib.request.Request(
-            f"{self.config['gateway_url']}/api/v1/gateway/ask/{bot['path']}",
-            data=json.dumps({"question": question}).encode("utf-8"),
+            f"{self.config['gateway_url']}/api/v1/gateway/{endpoint}/{bot['path']}",
+            data=json.dumps(body).encode("utf-8"),
             headers={"Content-Type": "application/json", "apikey": bot["apikey"]},
             method="POST",
         )

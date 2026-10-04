@@ -1,0 +1,19 @@
+{
+  "gateway_url": "https://gateway.perusahaan-anda.example",
+  "bots": [
+    {
+      "id": "it-support",
+      "label": "IT Support",
+      "description": "Panduan helpdesk IT: password, VPN, perangkat, keamanan",
+      "path": "chat-it-support",
+      "apikey": "<API key dari tombol Generate Key>"
+    },
+    {
+      "id": "hr",
+      "label": "HR",
+      "description": "Cuti, lembur, gaji, kesehatan, pelatihan",
+      "path": "chat-hr",
+      "apikey": "<API key dari tombol Generate Key>"
+    }
+  ]
+}

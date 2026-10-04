@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentosa Chatbot</title>
+<style>
+  :root {
+    --bg: #f1f5f9; --panel: #ffffff; --text: #0f172a; --muted: #64748b; --border: #e2e8f0;
+    --brand: #2563eb; --accent: #06b6d4; --bot: #f8fafc; --user-text: #ffffff; --error: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #020617; --panel: #0f172a; --text: #e2e8f0; --muted: #94a3b8; --border: #1e293b;
+      --bot: #111c33; --error: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  .app { display: grid; grid-template-columns: 260px 1fr; height: 100vh; max-width: 1100px; margin: 0 auto; }
+  aside { border-right: 1px solid var(--border); background: var(--panel); padding: 20px 14px; overflow-y: auto; }
+  aside h1 { font-size: 17px; margin: 0 0 4px; }
+  aside p { font-size: 12px; color: var(--muted); margin: 0 0 16px; }
+  .bot { display: block; width: 100%; text-align: left; border: 1px solid var(--border); background: transparent; color: var(--text);
+         border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; font: inherit; }
+  .bot:hover { border-color: var(--accent); }
+  .bot.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, transparent); }
+  .bot strong { display: block; font-size: 14px; }
+  .bot span { font-size: 12px; color: var(--muted); }
+  main { display: flex; flex-direction: column; min-width: 0; background: var(--panel); }
+  header { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  header strong { font-size: 16px; }
+  header div { font-size: 12px; color: var(--muted); }
+  #log { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 80%; padding: 10px 14px; border-radius: 14px; line-height: 1.5; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user { align-self: flex-end; background: var(--brand); color: var(--user-text); border-bottom-right-radius: 4px; }
+  .msg.bot-reply { align-self: flex-start; background: var(--bot); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg.error { align-self: flex-start; color: var(--error); border: 1px solid var(--error); background: transparent; }
+  .meta { font-size: 11px; color: var(--muted); margin-top: 6px; white-space: normal; }
+  .empty { color: var(--muted); font-size: 14px; margin: auto; text-align: center; }
+  .suggest { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 12px; }
+  .suggest button { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .suggest button:hover { border-color: var(--accent); }
+  form { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
+  input { flex: 1; min-width: 0; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+  input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+  form button { padding: 0 18px; border: 0; border-radius: 10px; background: var(--brand); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  form button:disabled { opacity: .5; cursor: wait; }
+  @media (max-width: 720px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: 100dvh; }
+    aside { border-right: 0; border-bottom: 1px solid var(--border); padding: 12px 16px; }
+    #bots { display: flex; gap: 8px; overflow-x: auto; }
+    aside h1, aside p { display: none; }
+    .bot { flex: 0 0 auto; width: auto; margin: 0; padding: 8px 12px; }
+    .bot span { display: none; }
+    .msg { max-width: 92%; }
+    #log, form, header { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>Sentosa Chatbot</h1>
+    <p>Pilih chatbot. Setiap chatbot hanya menjawab dari Knowledge Base-nya sendiri.</p>
+    <div id="bots"></div>
+  </aside>
+  <main>
+    <header><strong id="title">Memuat…</strong><div id="subtitle"></div></header>
+    <div id="log"></div>
+    <form id="form">
+      <input id="question" placeholder="Tulis pertanyaan…" autocomplete="off" required maxlength="2000">
+      <button id="send">Kirim</button>
+    </form>
+  </main>
+</div>
+<script>
+const SUGGESTIONS = {
+  "it-support": ["VPN saya error SC-777, harus bagaimana?", "Berapa nomor helpdesk IT?", "Akun saya terkunci, kapan bisa dipakai lagi?"],
+  "customer-service": ["Berapa lama batas retur barang?", "Kapan refund saya masuk?", "Apa syarat member Platinum?"],
+  "peraturan": ["Boleh WFH berapa hari seminggu?", "Berapa lama SP1 berlaku?", "Bolehkah menerima hadiah dari pemasok?"],
+  "hr": ["Berapa hari jatah cuti tahunan?", "Cuti ayah berapa hari?", "Tanggal berapa gaji dibayar?"],
+  "sales": ["Siapa yang menyetujui diskon 12%?", "Berapa komisi sales?", "Termin pembayaran untuk instansi pemerintah?"],
+  "keuangan": ["Berapa uang harian dinas ke Makassar?", "Batas waktu klaim reimbursement?", "Kapan uang muka harus dipertanggungjawabkan?"],
+};
+const state = { bots: [], active: null, history: {} };
+const $ = (id) => document.getElementById(id);
+
+function escapeHtml(text) {
+  return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function renderAnswer(text) {
+  return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+
+function renderBots() {
+  $("bots").innerHTML = "";
+  for (const bot of state.bots) {
+    const button = document.createElement("button");
+    button.className = "bot" + (bot.id === state.active ? " active" : "");
+    button.innerHTML = `<strong>${escapeHtml(bot.label)}</strong><span>${escapeHtml(bot.description)}</span>`;
+    button.onclick = () => selectBot(bot.id);
+    $("bots").appendChild(button);
+  }
+}
+
+function renderLog() {
+  const bot = state.bots.find((b) => b.id === state.active);
+  const messages = state.history[state.active] || [];
+  $("title").textContent = bot ? `Chatbot ${bot.label}` : "Tidak ada chatbot";
+  $("subtitle").textContent = bot ? bot.description : "Isi config.json dulu";
+  const log = $("log");
+  log.innerHTML = "";
+  if (!messages.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.innerHTML = "Belum ada percakapan. Coba tanya:";
+    const suggest = document.createElement("div");
+    suggest.className = "suggest";
+    for (const q of SUGGESTIONS[state.active] || []) {
+      const b = document.createElement("button");
+      b.textContent = q;
+      b.onclick = () => ask(q);
+      suggest.appendChild(b);
+    }
+    empty.appendChild(suggest);
+    log.appendChild(empty);
+  }
+  for (const m of messages) {
+    const div = document.createElement("div");
+    div.className = "msg " + m.role;
+    div.innerHTML = m.role === "bot-reply" ? renderAnswer(m.text) : escapeHtml(m.text);
+    if (m.meta) {
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = m.meta;
+      div.appendChild(meta);
+    }
+    log.appendChild(div);
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+function selectBot(id) {
+  state.active = id;
+  renderBots();
+  renderLog();
+  $("question").focus();
+}
+
+async function ask(question) {
+  const botId = state.active;
+  const messages = (state.history[botId] ||= []);
+  messages.push({ role: "user", text: question });
+  const pending = { role: "bot-reply", text: "Sedang mencari di Knowledge Base…" };
+  messages.push(pending);
+  renderLog();
+  $("send").disabled = true;
+  const started = performance.now();
+  try {
+    const response = await fetch(`/api/ask/${botId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+    const body = await response.json();
+    const seconds = ((performance.now() - started) / 1000).toFixed(1);
+    if (!response.ok) {
+      Object.assign(pending, { role: "error", text: body.error || `Error ${response.status}` });
+    } else {
+      const sources = (body.sources || []).map((s) => s.label).filter(Boolean);
+      pending.text = body.answer;
+      pending.meta = `${seconds} detik` + (sources.length ? ` · Sumber: ${[...new Set(sources)].join(", ")}` : "");
+    }
+  } catch (err) {
+    Object.assign(pending, { role: "error", text: `Server demo tidak bisa dihubungi: ${err.message}` });
+  } finally {
+    $("send").disabled = false;
+    if (state.active === botId) renderLog();
+  }
+}
+
+$("form").onsubmit = (event) => {
+  event.preventDefault();
+  const question = $("question").value.trim();
+  if (!question || !state.active) return;
+  $("question").value = "";
+  ask(question);
+};
+
+fetch("/api/bots")
+  .then((r) => r.json())
+  .then((body) => {
+    state.bots = body.bots;
+    state.active = state.bots[0]?.id ?? null;
+    renderBots();
+    renderLog();
+  })
+  .catch((err) => { $("title").textContent = `Gagal memuat daftar chatbot: ${err.message}`; });
+</script>
+</body>
+</html>

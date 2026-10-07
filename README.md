@@ -228,7 +228,8 @@ tidak menjawab hal di luar kebijakan perusahaan.
 
 ## Coba Sendiri
 
-- Trial gratis 14 hari, tanpa sales call: https://alzizan.co.id/register
+- Coba gratis, tanpa sales call: https://alzizan.co.id/register
+- Mau lihat dengan kasus tim Anda? Minta demo, atau sesi in-house gratis *Big Data & AI Tech Update* di kantor Anda: sales@alzizan.co.id
 - Demo video: https://www.youtube.com/@AlzizanDigitalSolutions
 
 ---

@@ -1,5 +1,7 @@
 # Walkthrough — Satu Platform, Enam Chatbot Perusahaan (IT Support, Customer Service, Peraturan, HR, Sales, Keuangan)
 
+**Bahasa:** Bahasa Indonesia · [English](README.en.md)
+
 Cara mudah membuat chatbot custom untuk perusahaan dengan Enterprise Data Platform: unggah dokumen
 internal ke **Knowledge Base**, publikasikan sebagai **chat API** lewat **API Gateway**, lalu pasang
 halaman chat sederhana. Setiap chatbot hanya menjawab dari dokumennya sendiri, dan semua AI berjalan
